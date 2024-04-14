@@ -1,0 +1,1482 @@
+! **********************************************************************
+! Автор: Коновалов И.А.
+! Подр. 49
+! тел.: 49-31
+! Описание нодализации: Тест теплообмена в круглой трубе 
+! Начало работы: 13-04-2024
+! **********************************************************************
+
+!!bb Ключи основной процедуры
+
+! Ключ                 
+restart = 0;            
+title = 'vb.036.003';
+dt_max = 0.01;         
+dt_out = 1.;           
+fin_tim = 600.;           
+dt_sav = 1.;             
+append_res = 1;         
+append_sav = 1;         
+! noption = '5';
+check_only = 0;         
+local_err = 1.0e-4;     
+ngas = 'H2O, N2, H2, HE, O2';   
+dt_diag = dt_out;       
+inf = 1;                
+accel_stat = 0; 
+okbm = 1;
+! локализация файлов свойств
+! _workPath = 0;  ! HPC server
+! _workPath = 1;  ! barinov okbm
+! _workPath = 2;  ! barinov home
+! _workPath = 3;  ! konovalov okbm
+_workPath = 4;  ! konovalov home
+IF(_workPath==0) THEN ! HPC server
+	nwsp_dat='./nwsp_dat';
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	nwsp_dat='d:\Users\BARINOV\KORSAR_Projects\nwsp_dat';
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	nwsp_dat='d:\Users\...';
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	nwsp_dat='n:\Dep49\Common\MCD\Utils\KORSAR-KUPOL\nwsp_dat';
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	nwsp_dat='c:\codes\KORSAR\nwsp_dat';
+ENDIF
+
+_tauRest = 0.; ! момент рестарта
+_debug = 0; ! вывод отладочной информации
+_diag = 2;  ! режим вывода диагностики
+            ! 0 - нет диагностики
+            ! 1 - краткая
+            ! 2 - расширенная
+_monPer = 1.0;    ! Период вывода диагностики в файл мониторинга
+
+
+!!eb
+!!bb Общие глобальные переменные
+_t0C = 273.15;
+_tOffset = _t0C;
+
+_pi = 3.1415927;
+_gg = 9.81;
+_xgAir(1:4) = 0.,0.,0.757,0.243;
+_xgN2(1:4) = 0.,0.,9.999e-1,0.;
+_pAtm = 101.3e+03;
+_tAtm = 20.+_tOffset;
+_tsAtm = WS1P1(1,'P',_pAtm,2);
+
+_kgs = 98066.5;  ! кгс/см2, Па
+_MPa = 1.e6; ! МПа, Па
+_kPa = 1.e3; ! МПа, Па
+_MWt = 1.e6; ! МПа, Па
+_kWt = 1.e3; ! МПа, Па
+_atm = 101325.; ! атм, Па
+
+_timeMon = 0.;    ! Вспомогательные переменные диагностики
+_timeMonOld = 0.; ! -//-
+
+_x = 0.;    ! вспомогательная переменная float
+_y = 0.;    ! -//-                       float 
+_z = 0.;    ! -//-                       float 
+_spare = 0.;
+_i = 0;     ! -//-                       int 
+_j = 0;     ! -//-                       int 
+_k = 0;     ! -//-                       int 
+_l = 0;     ! -//-                       int 
+_m = 0;     ! -//-                       int 
+_n = 0;     ! -//-                       int 
+_n1 = 0;    ! -//-                       int 
+_n2 = 0;    ! -//-                       int
+_n3 = 0;    ! -//-                       int
+_t1 = 0.;   ! -//-                       int
+
+! Свойства сплава ПТ-7М
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/propPT7M.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propPT7M.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propPT7M.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\propPT7M.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlamPT7M(1:2,1:_i) = 0.;
+_thcPT7M(1:2,1:_i) = 0.;
+_troPT7M(1:2,1:_i) = 0.;
+_tlamPT7M(1,1:_i) = _t;
+_tlamPT7M(2,1:_i) = _lam;
+_thcPT7M(1,1:_i) = _t;
+_thcPT7M(2,1:_i) = _hc;
+_troPT7M(1,1:_i) = _t;
+_troPT7M(2,1:_i) = _ro;
+
+! Свойства стали 08Х18Н10Т - внутрикорпусная
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/prop08H18N10T.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop08H18N10T.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop08H18N10T.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\prop08H18N10T.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlam08X18H10T(1:2,1:_i) = 0.;
+_thc08X18H10T(1:2,1:_i) = 0.;
+_tro08X18H10T(1:2,1:_i) = 0.;
+_tlam08X18H10T(1,1:_i) = _t;
+_tlam08X18H10T(2,1:_i) = _lam;
+_thc08X18H10T(1,1:_i) = _t;
+_thc08X18H10T(2,1:_i) = _hc;
+_tro08X18H10T(1,1:_i) = _t;
+_tro08X18H10T(2,1:_i) = _ro;
+   
+! Свойства стали 42ХНМ
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+  _i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/prop42HNM.mat',
+    $_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop42HNM.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop42HNM.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\prop42HNM.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlam42HNM(1:2,1:_i) = 0.;
+_thc42HNM(1:2,1:_i) = 0.;
+_tro42HNM(1:2,1:_i) = 0.;
+_tlam42HNM(1,1:_i) = _t;
+_tlam42HNM(2,1:_i) = _lam;
+_thc42HNM(1,1:_i) = _t;
+_thc42HNM(2,1:_i) = _hc;
+_tro42HNM(1,1:_i) = _t;
+_tro42HNM(2,1:_i) = _ro;
+
+! Свойства стали 15Х2МФА (TODO: уточнить плотность и теплоемкость) - корпусная
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/prop15H2MFA.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop15H2MFA.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop15H2MFA.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\prop15H2MFA.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlam15H2MFA(1:2,1:_i) = 0.;
+_thc15H2MFA(1:2,1:_i) = 0.;
+_tro15H2MFA(1:2,1:_i) = 0.;
+_tlam15H2MFA(1,1:_i) = _t;
+_tlam15H2MFA(2,1:_i) = _lam;
+_thc15H2MFA(1,1:_i) = _t;
+_thc15H2MFA(2,1:_i) = _hc;
+_tro15H2MFA(1,1:_i) = _t;
+_tro15H2MFA(2,1:_i) = _ro;
+
+! Свойства стали 07Х25Н13 (TODO: уточнить свойства) - наплавка
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/prop07H25N13.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop07H25N13.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\prop07H25N13.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\prop07H25N13.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlam07H25N13(1:2,1:_i) = 0.;
+_thc07H25N13(1:2,1:_i) = 0.;
+_tro07H25N13(1:2,1:_i) = 0.;
+_tlam07H25N13(1,1:_i) = _t;
+_tlam07H25N13(2,1:_i) = _lam;
+_thc07H25N13(1,1:_i) = _t;
+_thc07H25N13(2,1:_i) = _hc;
+_tro07H25N13(1,1:_i) = _t;
+_tro07H25N13(2,1:_i) = _ro;
+
+! Свойства воды
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/propH2O.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propH2O.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propH2O.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\propH2O.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlamH2O(1:2,1:_i) = 0.;
+_thcH2O(1:2,1:_i) = 0.;
+_troH2O(1:2,1:_i) = 0.;
+_tlamH2O(1,1:_i) = _t;
+_tlamH2O(2,1:_i) = _lam;
+_thcH2O(1,1:_i) = _t;
+_thcH2O(2,1:_i) = _hc;
+_troH2O(1,1:_i) = _t;
+_troH2O(2,1:_i) = _ro;
+
+! Свойства воздуха
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/propVozd.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propVozd.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+  _i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propVozd.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\propVozd.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlamVozd(1:2,1:_i) = 0.;
+_thcVozd(1:2,1:_i) = 0.;
+_troVozd(1:2,1:_i) = 0.;
+_tlamVozd(1,1:_i) = _t;
+_tlamVozd(2,1:_i) = _lam;
+_thcVozd(1,1:_i) = _t;
+_thcVozd(2,1:_i) = _hc;
+_troVozd(1,1:_i) = _t;
+_troVozd(2,1:_i) = _ro;
+
+! Свойства топливной композиции (вар.1)
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+  _i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/propToplKomp1.mat',
+    $_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propToplKomp1.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propToplKomp1.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\propToplKomp1.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlamTopl(1:2,1:_i) = 0.;
+_thcTopl(1:2,1:_i) = 0.;
+_troTopl(1:2,1:_i) = 0.;
+_tlamTopl(1,1:_i) = _t;
+_tlamTopl(2,1:_i) = _lam;
+_thcTopl(1,1:_i) = _t;
+_thcTopl(2,1:_i) = _hc;
+_troTopl(1,1:_i) = _t;
+_troTopl(2,1:_i) = _ro;
+
+! Свойства бетона серпентинитового
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/propBetSerp.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propBetSerp.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propBetSerp.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\propBetSerp.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlamBetSerp(1:2,1:_i) = 0.;
+_thcBetSerp(1:2,1:_i) = 0.;
+_troBetSerp(1:2,1:_i) = 0.;
+_tlamBetSerp(1,1:_i) = _t;
+_tlamBetSerp(2,1:_i) = _lam;
+_thcBetSerp(1,1:_i) = _t;
+_thcBetSerp(2,1:_i) = _hc;
+_troBetSerp(1,1:_i) = _t;
+_troBetSerp(2,1:_i) = _ro;
+
+! Свойства теплоизоляции (асбест)
+_t(1:100) = 0.;
+_lam(1:100) = 0.;
+_hc(1:100) = 0.;
+_ro(1:100) = 0.;
+IF(_workPath==0) THEN ! HPC server
+	_i = IODLC('/storage/raidbig/WORK/dep49/MATLIB/propIzol.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==1) THEN ! barinov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propIzol.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==2) THEN ! barinov home
+	_i = IODLC('d:\Users\...',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==3) THEN ! konovalov okbm
+	_i = IODLC('n:\Dep49\Common\MCD\Utils\__MATLIB__\propIzol.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+IF(_workPath==4) THEN ! konovalov home
+	_i = IODLC('c:\codes\KORSAR\__MATLIB__\propIzol.mat',
+		$_t,$_lam,$_hc,$_ro);
+ENDIF
+_t = _t+_tOffset;
+_tlamIzol(1:2,1:_i) = 0.;
+_thcIzol(1:2,1:_i) = 0.;
+_troIzol(1:2,1:_i) = 0.;
+_tlamIzol(1,1:_i) = _t;
+_tlamIzol(2,1:_i) = _lam;
+_thcIzol(1,1:_i) = _t;
+_thcIzol(2,1:_i) = _hc;
+_troIzol(1,1:_i) = _t;
+_troIzol(2,1:_i) = _ro;
+
+! Свойства хорошего проводника тепла
+_tlamInf(1:2,1:2) = 
+  273.,   1.e5
+ ,1000.,  1.e5;
+_thcInf(1:2,1:2) = 
+  273.,   1.e-5
+ ,1000.,  1.e-5;
+_troInf(1:2,1:2) = 
+  273.,   1.e-5
+ ,1000.,  1.e-5;
+
+!!eb 
+
+!!bb Переменные описания элементов TUBE
+
+! Маска сдвига			число элементов
+_chOfstTUBE  = 0	;	_numChTUBE	= 1;
+_scOfstTUBE  = 0	;	_numScTUBE	= 0;
+_bvOfstTUBE  = 0	;	_numBvTUBE	= 1;
+_smOfstTUBE  = 0	;	_numSmTUBE	= 1;
+_jnbOfstTUBE = 0	;	_numJnbTUBE	= 0;
+_cntOfstTUBE = 0	;	_numCntTUBE	= 0;
+_lrOfstTUBE  = 0	;	_numLrTUBE	= 0;
+_valOfstTUBE = 0	;	_numValTUBE	= 0;
+_hcsOfstTUBE = 0	;	_numHcsTUBE	= 1;
+_qhsOfstTUBE = 0	;	_numQhsTUBE	= 0;
+_slvOfstTUBE = 0	;	_numSlvTUBE	= 0;
+_tnkOfstTUBE = 0	;	_numTnkTUBE	= 0;
+_colOfstTUBE = 0	;	_numColTUBE	= 0;
+_bhOfstTUBE  = 0	;	_numBhTUBE	= 0;
+_jnOfstTUBE  = 0	;	_numJnTUBE	= 0;
+_accOfstTUBE = 0	;	_numAccTUBE	= 0;
+_modOfstTUBE = 0	;	_numModTUBE	= 0;
+_fuOfstTUBE  = 0	;	_numFuTUBE	= 0;
+_corOfstTUBE = 0	;	_corLayTUBE	= 0;
+_qflOfstTUBE = 0	;	_numQflTUBE	= 0;
+_srOfstTUBE  = 0	;	_numSrTUBE 	= 0;
+_tmOfstTUBE  = 0	;	_numTmTUBE 	= 0;
+_pmpOfstTUBE = 0	;	_numPmpTUBE	= 0;
+_radOfstTUBE = 0	;	_numRadTUBE	= 0;
+
+!!bb Режимные и конструктивные параметры TUBE
+
+!!eb
+
+!!bb Начальные условия TUBE
+
+! Начальное давление
+_P0_TUBE = 15.7*_MPa;
+
+! Начальная температура
+_T0_TUBE = 40.+_t0C;
+
+
+!!eb
+
+!!bb Граничные условия модели TUBE
+	! Целевой расход в трубе
+	_Gt_TUBE = 3.056;
+
+	! Целевое давление
+	_P0_TUBE = 15.7*_MPa;
+	
+	! Целевая температура
+	_T0_TUBE = 40.+_t0C;
+
+!!eb
+
+!!bb Переменные управляющих событий
+
+!!eb
+
+!!bb CH TUBE (CH)
+! Элементы  модели
+_chTUBE(1:_numChTUBE) = 1:_numChTUBE;
+! Число интегрируемых элементов модели
+_numLayChTUBE = _numChTUBE;
+! Интегрируемые элементы модели
+_chLayTUBE(1:_numLayChTUBE) = 1:_numChTUBE;
+
+_dzFullChTUBE = 0.; 
+_dhFullChTUBE = 0.; 
+_vFullChTUBE = 0.; 
+_dzFullHcsTUBE = 0.; 
+_f1FullHcsTUBE = 0.; 
+_f2FullHcsTUBE = 0.; 
+_mChTUBE = 0.;
+
+! ===== Размерные ключи
+_nChTUBE(1:_numChTUBE) = 3;
+
+_nChTUBE(1) = 5;
+
+_nMaxChTUBE = MAXA(_nChTUBE);
+
+!!eb
+
+!!bb BVOL_T TUBE (BV)
+! Элементы  модели
+_bvTUBE(1:_numBvTUBE) = 
+	1
+	;
+! Число интегрируемых элементов модели
+_numLayBvTUBE = 1;
+! Интегрируемые элементы модели
+_bvLayTUBE(1:_numLayBvTUBE) = 1:1;
+
+!!eb BV TUBE
+
+!!bb SMASS_T TUBE (SM)
+! Элементы  модели
+_smTUBE(1:_numSmTUBE) = 
+  1,
+	;
+! Число интегрируемых элементов модели
+_numLaySmTUBE = 1;
+! Интегрируемые элементы модели
+_smLayTUBE(1:_numLaySmTUBE) = 1:1;
+
+!!eb
+
+!!bb HCS TUBE (HCS)
+! Элементы  модели
+_hcsTUBE(1:_numHcsTUBE) = 1:1;
+! Число интегрируемых элементов модели
+_numLayHcsTUBE = 1;
+! Интегрируемые элементы модели
+_hcsLayTUBE(1:_numLayHcsTUBE) = 1:1;
+! ===== Размерные ключи
+_nHcsTUBE(1:_numHcsTUBE) = 1;
+
+_nHcsTUBE(1) = 5;
+
+_nMaxHcsTUBE = MAXA(_nHcsTUBE);
+
+!!eb
+
+!!bb Датчики TUBE
+
+_TUBE_sens_CH1(1:150) = 0.;
+_TUBE_sens_integr(1:10) = 0.;
+
+!!eb
+
+!!eb
+
+!!bb Печать состава расчетной модели
+PRINT '=== Model contains: ';
+PRINT '- Submodel TUBE';
+PRINT '=== END ';
+
+!!eb
+
+MAIN:
+
+LAYOUT
+! Структура моделей
+!!bb Lay TUBE
+
+CH(1+_chOfstTUBE)/i - BVOL_T(1+_bvOfstTUBE);
+CH(1+_chOfstTUBE)/o - BLJUN1;
+CH(1+_chOfstTUBE)(_nChTUBE(1+_chOfstTUBE)) - SMASS_T(1+_smOfstTUBE);
+
+HCS(1+_hcsOfstTUBE)(1:5)/1 - CH(1+_chOfstTUBE)(1:5);
+HCS(1+_hcsOfstTUBE)(1:5)/2 - BHEAT1;
+
+
+!!eb
+
+
+END
+! Вызов процедур DATA моделей
+CALL _BlJun;
+CALL _Bh1;
+!!bb CALLs TUBE
+CALL _ChTUBE;
+CALL _BvTUBE;
+! CALL _LrTUBE;
+CALL _HcsTUBE;
+CALL _SmTUBE;
+
+!!eb
+
+!!bb Определение расчетных переменных на основе DATA
+
+! Теплообменная пеоверхность
+LIST _TUBE_TO = HCS(1+_hcsOfstTUBE);
+
+!!eb
+
+!!bb SETs
+
+! TUBE
+SET _MonitorTUBE;
+SET _plots_TUBE;
+
+! SysTUBE
+!...
+
+! Общие
+SET _CalcSensor;
+SET _DtHandle;
+SET _Actions;
+
+
+SET _ReloadMonPer;  ! Должен быть после всех мониторов!!!
+
+!!eb
+
+!!bb OUTs
+OUT _Out;
+
+!!eb
+
+END
+
+DATA _BlJun   ! общая для всех объектов
+	MDL = 'BLJUN';
+	ELS = 1;
+	TYPE = 0;
+END
+DATA _Bh1     ! общая для всех объектов
+	MDL = 'BHEAT';
+	ELS = 1;
+	! Тип ГУ
+	TYPE = 5500.;
+	! Параметр 1 ГУ
+	BCOND(1) = 5.;
+	! Параметр 2 ГУ
+	BCOND(2) = _T0_TUBE;
+END
+
+!!bb DATAs TUBE
+! Для общей инициализации одинаковых экземпляров модели
+  ! ELS = (_chLayTUBE+_chOfstTUBE),(_chLayTUBE+_chOfstTUBE);
+  ! IF(NV <= _chOfstTUBE2) THEN
+    ! _i = NV-_chOfstTUBE;
+  ! ENDIF
+  ! IF(NV > _chOfstTUBE) THEN
+    ! _i = NV-_chOfstTUBE;
+  ! ENDIF
+
+DATA _ChTUBE
+	MDL = 'CH';
+	ELS = _chLayTUBE+_chOfstTUBE;
+	IF(NV==3+_chOfstTUBE) THEN
+		N = _nChTUBE(NV-_chOfstTUBE);
+		
+		S = 
+			0.000120763,
+			0.000120763,
+			0.000120763,
+			0.000120763,
+			0.000120763;
+	
+		TYPE  = 0;
+	
+		PR = 
+			0.038955749,
+			0.038955749,
+			0.038955749,
+			0.038955749,
+			0.038955749;
+	
+		DZ = 
+			2.490,
+			2.490,
+			2.490,
+			2.490,
+			2.490;
+
+	
+		DH = 0.;
+
+	
+		ROU = 2.e-5;
+	
+		P(1:N) = _P0_TUBE;
+	
+		T(1,1:N) = _T0_TUBE;
+		T(2,1:N) = WS1P1(2,'P',_P0_TUBE,2);
+	
+		VOID = 0.;
+		!XB = ;
+		!MBW = ;
+		!SRE(1:2) = ;
+		!NE = ;
+		!JIN = 0;
+		!JOU = 0;
+		
+		! RAV = 0.188;
+		
+		XNG(1,1:N) = 0.;
+		XNG(2,1:N) = 0.;
+		XNG(3,1:N) = 0.;
+		XNG(4,1:N) = 0.;
+		
+		XNF(1,1:N) = 0.;
+		XNF(2,1:N) = 0.;
+		XNF(3,1:N) = 0.;
+		XNF(4,1:N) = 0.;
+		
+	ENDIF
+END
+
+DATA _BvTUBE
+	MDL = 'BVOL_T';
+	ELS = _bvLayTUBE+_bvOfstTUBE;
+	IF(NV==1+_bvOfstTUBE) THEN
+		P = _P0_TUBE;
+		
+		VOID = 0.;
+		
+		T = _T0_TUBE, WS1P1(2,'P',_P0_TUBE,2);
+		
+		!XB = ;
+		
+		XNG(1) = 0.;
+		XNG(2) = 0.;
+		XNG(3) = 0.;
+		XNG(4) = 0.;
+		
+		XNF(1) = 0.;
+		XNF(2) = 0.;
+		XNF(3) = 0.;
+		XNF(4) = 0.;
+	ENDIF
+	IF(NV==2+_bvOfstTUBE) THEN
+		P = _P0_in_t_TUBE;
+		
+		VOID = 0.;
+		
+		T = _T0_in_t_TUBE, WS1P1(2,'P',_P0_in_t_TUBE,2);
+		
+		!XB = ;
+		
+		XNG(1) = 0.;
+		XNG(2) = 0.;
+		XNG(3) = 0.;
+		XNG(4) = 0.;
+		
+		XNF(1) = 0.;
+		XNF(2) = 0.;
+		XNF(3) = 0.;
+		XNF(4) = 0.;
+	ENDIF
+
+END
+
+DATA _SmTUBE
+  MDL = 'SMASS_T';
+  ELS = _smLayTUBE+_smOfstTUBE;
+  IF(NV==1+_smOfstTUBE) THEN ! 
+    GIN = 
+			0.,
+			0.;
+		
+    _n = 1+_chOfstTUBE;
+    EHIN = 
+			WS2P1(1,'PT',P.CH(_n)(5),T.CH(_n)(1,_nChTUBE(_n)),4),
+			WS2P1(2,'PT',P.CH(_n)(5),T.CH(_n)(2,_nChTUBE(_n)),4);
+			
+    GMOUT = 0.;
+		
+    !XB = ;
+    XNG(1) = 0.;
+    XNG(2) = 0.;
+    XNG(3) = 0.;
+    XNG(4) = 0.;
+  ENDIF
+END
+
+DATA _HcsTUBE
+	MDL = 'HCS';
+	ELS = _hcsLayTUBE+_hcsOfstTUBE;
+	
+	IF(NV==1+_hcsOfstTUBE) THEN
+		N = _nHcsTUBE(NV-_hcsOfstTUBE);
+			
+		KL = 1;
+			
+		K  = 5;
+			
+		TYPE = 0;
+			
+		! NSD = ;
+			
+		COOR = 1;
+			
+		XL = 
+			6.2e-3,
+			8.0e-3;
+			
+		X = LINA(XL(1),XL(2),K);
+			
+		TLAM = $_tlam08X18H10T;
+		THC = $_thc08X18H10T;
+		TRO = $_tro08X18H10T;
+			
+		! QX = ;
+			
+		DFZ = 
+			2.490,
+			2.490,
+			2.490,
+			2.490,
+			2.490;
+			
+		! QZ = ;
+			
+		! EM = 0.99,0.989;
+			
+		B = 1.;
+			
+		NGE = 0;
+			
+		! SD = ;
+			
+		! LQ = ;
+			
+		! ZLR = ;
+			
+		! CLR = ;
+			
+		! FORMF = ;
+			
+		! REFLOOD = ;
+			
+		! PF1 = 0.5;
+			
+		! PF2 = ;
+			
+		! NALF = ;
+			
+		KIND = 0,4;
+			
+		! PAR = ;
+			
+		! ALM = ;
+	ENDIF
+	
+END
+
+!!eb
+
+!!bb EVENTs TUBE
+EVENT _plots_TUBE(_dt_plots_) ! вывод графиков Python (_dt_plots_ - период в с)
+	
+	_dt_plots := 0.;
+	_dt_plots = _dt_plots_;
+	
+	_errorCode := 0.;
+	
+	IF (first) THEN 
+		first = 0;
+		_t_last_call := 0.;
+		_t_last_call = TAU;
+	ENDIF
+	
+	IF ((TAU+DT)>=(_t_last_call+_dt_plots)) THEN
+		_t_last_call = TAU;
+		
+		_n1 = 1+_chOfstTUBE;
+		_n2 = 2+_chOfstTUBE;
+		_n3 = 3+_chOfstTUBE;
+		
+		_IO_plot(1:6) := 0.;
+		
+		_IO_plot(1:6) =
+		4.,		! количество аргументов
+		0.,		! количество возвращаемых значений
+		TAU,
+		T.CH(_n1)(1,15)-_t0C,
+		T.CH(_n2)(1,2)-_t0C,
+		T.CH(_n3)(1,13)-_t0C
+		;
+		
+		IF (TAU > 5.*dt_max) THEN
+			! Вызов пользовательского кода из файла plots_cool.py
+			_errorCode = 
+				ALIEN(0, 'libkorpy.dll', 'plots_TUBE', 6, $_IO_plot);
+		ENDIF
+	ENDIF
+END
+EVENT _MonitorTUBE
+	type = ALW;                  
+	replace = 1;
+	turn_on = 1;
+	! Диагностика геометрии
+	IF first THEN 
+		first = 0;
+		_timeMon = 0.;
+		_timeMonOld = 0.;
+		PRINT '=== MODEL TUBE GEOMETRY DIAGNOSTICS ===';
+		PRINT '*** CH DATA TUBE ***';
+		DO _i=1,_numLayChTUBE;
+			_m = _chLayTUBE(_i)+_chOfstTUBE;
+			_n = _chLayTUBE(_i);
+			PRINT '- CH',_m,' in model TUBE',_n;
+			! Геометрия каналов
+			_dzFullChTUBE = 0.;
+			_dhFullChTUBE = 0.;
+			_vFullChTUBE = 0.;
+			PRINT 'Cl','----- DZ ------','----- DH ------','----- V -------';
+			DO _j=1,N.CH(_m);
+				_dzFullChTUBE = _dzFullChTUBE + DZ.CH(_m)(_j);
+				_dhFullChTUBE = _dhFullChTUBE + DH.CH(_m)(_j);
+				_vFullChTUBE = _vFullChTUBE + V.CH(_m)(_j);
+				PRINT _j,DZ.CH(_m)(_j),DH.CH(_m)(_j),V.CH(_m)(_j);
+			ENDDO
+			PRINT 'Cl','----- S -------','----- D -------','---- Type -----',
+				'----- DэквS ---';
+			DO _j=1,N.CH(_m);
+				PRINT _j,S.CH(_m)(_j),D.CH(_m)(_j),TYPE.CH(_m)(_j),'             ',
+					((4*S.CH(_m)(_j))/_pi)**0.5;
+			ENDDO
+			PRINT 'Jc','---- DZJ ------','---- SJ -------','---- JUN ------',
+				'---- DэквSJ ---';
+			DO _j=1,N.CH(_m)+1;
+				PRINT _j,DZJ.CH(_m)(_j),SJ.CH(_m)(_j),JUN.CH(_m)(_j),'             ',
+					((4*SJ.CH(_m)(_j))/_pi)**0.5;
+			ENDDO
+			IF _diag > 1 THEN ! вывод исходных значений
+				PRINT 'Cl','----- P -------','----- T1 ------','---- T2 -------';
+				DO _j=1,N.CH(_m);
+					PRINT _j,P.CH(_m)(_j),T.CH(_m)(1,_j)-_tOffset,
+						T.CH(_m)(2,_j)-_tOffset;
+				ENDDO
+				PRINT 'Cl','----- VOID ----','----- XNG3 ----','---- XNG4 -----';
+				DO _j=1,N.CH(_m);
+					PRINT _j,VOID.CH(_m)(_j),XNG.CH(_m)(3,_j),XNG.CH(_m)(4,_j);
+				ENDDO
+				PRINT 'Cl','----- XNF3 ----','---- XNF4 -----','---------------';
+				DO _j=1,N.CH(_m);
+					PRINT _j,XNF.CH(_m)(3,_j),XNF.CH(_m)(4,_j);
+				ENDDO
+			ENDIF
+			PRINT '---------------------------------------------------';
+			PRINT 'Full length    ',_dzFullChTUBE;
+			PRINT 'Full height dif',_dhFullChTUBE;
+			PRINT 'Full volume    ',_vFullChTUBE;
+			! PRINT 'Минимальный проход    ',MINA( S.CH(_m)(1:N.CH(_m)) );
+			! PRINT 'Максимальный проход   ',MAXA( S.CH(_m)(1:N.CH(_m)) );
+			! PRINT 'Минимальный Dг        ',MINA( D.CH(_m)(1:N.CH(_m)) );
+			! PRINT 'Максимальный Dг       ',MAXA( D.CH(_m)(1:N.CH(_m)) );
+		ENDDO
+		PRINT ' ';
+		PRINT '*** HCS DATA TUBE ***';
+		DO _i=1,_numLayHcsTUBE;
+			_m = _hcsLayTUBE(_i)+_hcsOfstTUBE;
+			_n = _hcsLayTUBE(_i);
+			PRINT '- HCS',_m,' in model TUBE',_n;
+			! Геометрия ТК
+			_dzFullHcsTUBE = 0.;
+			_f1FullHcsTUBE = 0.; 
+			_f2FullHcsTUBE = 0.; 
+			PRINT 'Cl','----- DFZ ----- ','----- DF1 ----- ','---- DF2 ------';
+				DO _j=1,N.HCS(_m);      
+					_dzFullHcsTUBE = _dzFullHcsTUBE + DFZ.HCS(_m)(_j);
+					_f1FullHcsTUBE = _f1FullHcsTUBE + DF.HCS(_m)(1,_j);
+					_f2FullHcsTUBE = _f2FullHcsTUBE + DF.HCS(_m)(2,_j);
+					PRINT _j,DFZ.HCS(_m)(_j),DF.HCS(_m)(1,_j),DF.HCS(_m)(2,_j);
+				ENDDO
+			PRINT '---------------------------------------------------';
+			PRINT 'Full length      ',_dzFullHcsTUBE;
+			PRINT 'Surf 1 area      ',_f1FullHcsTUBE;
+			PRINT 'Surf 2 area      ',_f2FullHcsTUBE;
+			PRINT 'Geom mult B      ',B.HCS(_m);
+			PRINT 'Coeff. ALM-1     ',ALM.HCS(_m)(1);
+			PRINT 'Coeff. ALM-2     ',ALM.HCS(_m)(2);
+		ENDDO
+		PRINT ' ';
+		!PRINT '*** JN DATA TUBE ***';
+		!DO _i=1,_numLayJnTUBE;
+		!  _m = _jnLayTUBE(_i)+_jnOfstTUBE;
+		!  _n = _jnLayTUBE(_i);
+		!  PRINT '- JN',_m,' in model TUBE',_n;
+		!  ! Геометрия JN
+		!  PRINT 'Height diff.     ',DH.JN(_m);
+		!  PRINT 'CSI 1,2          ',CSI1.JN(_m),CSI2.JN(_m);
+		!  PRINT 'DZ               ',DZ.JN(_m);
+		!  PRINT 'S                ',S.JN(_m);
+		!  PRINT 'Smin             ',SMIN.JN(_m);
+		!ENDDO
+		!PRINT ' ';
+		PRINT '*** LR DATA TUBE ***';
+		DO _i=1,_numLayLrTUBE;
+			_m = _lrLayTUBE(_i)+_lrOfstTUBE;
+			_n = _lrLayTUBE(_i);
+			PRINT '- LR',_m,' in model TUBE',_n;
+			! Геометрия LR
+			PRINT 'CSI 1,2          ',CSI1.LR(_m),CSI2.LR(_m);
+		ENDDO
+		PRINT ' ';
+		! PRINT '=== MODEL TUBE GEOMETRY DIAGNOSTICS END ===';
+	ENDIF
+	
+	_timeMon = TAU;
+	! Диагностика параметров во время счета
+	IF( (_timeMon - _timeMonOld) >= _monPer ) THEN
+		PRINT '=== MODEL TUBE CALCULATION DIAGNOSTICS ===';
+		PRINT 'TAU = ',TAU,'  DT = ',DT;
+		PRINT '=== CH DATA TUBE ===';
+		DO _i=1,_numLayChTUBE;
+			_k = _chLayTUBE(_i)+_chOfstTUBE;
+			_n = _chLayTUBE(_i);
+			PRINT ' TAU = ',TAU,'  DT = ',DT;
+			PRINT '- CH',_k,' in model TUBE',_n;
+			PRINT 'Cl','----- P -------','---- VOID -----','---- T1 -------',
+				'---- DEN1 ------';
+			_mChTUBE = 0.;
+			DO _j=1,_nChTUBE(_n);
+				! Расчет массы канала
+				_mChTUBE = _mChTUBE + 
+					V.CH(_k)(_j)*( VOID.CH(_k)(_j)*DEN.CH(_k)(2,_j) + 
+					(1.-VOID.CH(_k)(_j))*DEN.CH(_k)(1,_j) );
+				PRINT _j,P.CH(_k)(_j),VOID.CH(_k)(_j),T.CH(_k)(1,_j)-_tOffset,
+					DEN.CH(_k)(1,_j);
+			ENDDO
+			PRINT 'Cl','---- T2 -------','---- DEN2 ------','---- XNG3 -----',
+				'---- XNG4 -----';
+			DO _j=1,_nChTUBE(_n);
+				PRINT _j,T.CH(_k)(2,_j)-_tOffset,DEN.CH(_k)(2,_j),XNG.CH(_k)(3,_j),
+					XNG.CH(_k)(4,_j);
+			ENDDO
+			PRINT 'Jc','---- CFLw -----','---- CFLs -----';
+			DO _j=1,_nChTUBE(_n)+1;
+				IF("($W.CH(_k)(1,_j),1) < -1.e-13 | 
+					"($W.CH(_k)(1,_j),1) > 1.e-13) THEN
+					_x = DT*W.CH(_k)(1,_j)/DZJ.CH(_k)(_j);
+				ELSE
+					_x = -888.;
+				ENDIF
+				IF("($W.CH(_k)(2,_j),2) < -1e-13 | 
+					"($W.CH(_k)(2,_j),2) > 1e-13) THEN
+					_y = DT*W.CH(_k)(2,_j)/DZJ.CH(_k)(_j);
+				ELSE
+					_y = -888.;
+				ENDIF
+				PRINT _j,_x,_y;
+			ENDDO
+			PRINT 'Jc','---- Gwater ---','---- Gsteam ---','---- Gmix -----',
+				'---- FRWw -----';
+			DO _j=1,_nChTUBE(_n)+1;
+				PRINT _j,"($W.CH(_k)(1,_j),1),"($W.CH(_k)(2,_j),2),
+					"($W.CH(_k)(1,_j),1) + "($W.CH(_k)(2,_j),2),
+					W.CH(_k)(1,_j)*FRW.CH(_k)(1,_j);
+			ENDDO
+			PRINT 'Jc','---- Wwater ---','---- Wsteam ---','---- MAPJ -----',
+				'---- FRWs -----';
+			DO _j=1,_nChTUBE(_n)+1;
+				PRINT _j,W.CH(_k)(1,_j),W.CH(_k)(2,_j),MAPJ.CH(_k)(_j),
+					'              ',W.CH(_k)(2,_j)*FRW.CH(_k)(2,_j);
+			ENDDO
+			PRINT '-- Mass CH = ',_mChTUBE;
+		ENDDO  
+		PRINT ' ';
+		PRINT '=== HCS DATA TUBE ===';
+		DO _i=1,_numLayHcsTUBE;
+			_k = _hcsLayTUBE(_i)+_hcsOfstTUBE;
+			_n = _hcsLayTUBE(_i);
+			PRINT ' TAU = ',TAU,'  DT = ',DT;
+			PRINT '- HCS',_k,' in model TUBE',_n;
+			PRINT 'Cl','----- Tw1 -----','---- Tw2 ------','---- ALW1 -----';
+			DO _j=1,_nHcsTUBE(_k-_hcsOfstTUBE);
+				PRINT _j,TW.HCS(_k)(1,_j)-_tOffset,TW.HCS(_k)(2,_j)-_tOffset,
+					ALW.HCS(_k)(1,_j);
+			ENDDO
+			PRINT 'Cl','---- ALW2 -----','---- Qw1-1 ----','---- Qw1-2 ----';
+			_x = 0.;_y = 0.;  ! Мощности
+			DO _j=1,_nHcsTUBE(_k-_hcsOfstTUBE);
+				_x = _x + QW.HCS(_k)(1,_j)+QW.HCS(_k)(2,_j);
+				_y = _y + QW.HCS(_k)(3,_j)+QW.HCS(_k)(4,_j);
+				PRINT _j,ALW.HCS(_k)(2,_j),QW.HCS(_k)(1,_j),QW.HCS(_k)(2,_j);
+			ENDDO
+			PRINT 'Cl','---- Qw2-1 ----','---- Qw2-2 ----','---- Mod1 -----';
+			DO _j=1,_nHcsTUBE(_k-_hcsOfstTUBE);
+				PRINT _j,QW.HCS(_k)(3,_j),QW.HCS(_k)(4,_j),MOD.HCS(_k)(1,_j);
+			ENDDO
+			PRINT 'Cl','---- Mod2 -----';
+			DO _j=1,_nHcsTUBE(_k-_hcsOfstTUBE);
+				PRINT _j,MOD.HCS(_k)(2,_j);
+			ENDDO
+			PRINT 'Total power Qw/1, Qw/2:',_x,_y;
+		ENDDO  
+		PRINT ' ';
+		!PRINT '=== JN DATA TUBE ===';
+		!PRINT ' TAU = ',TAU,'  DT = ',DT;
+		!DO _i=1,_numLayJnTUBE;
+		!  _k = _jnLayTUBE(_i)+_jnOfstTUBE;
+		!  _n = _jnLayTUBE(_i);
+		!  PRINT '- JN',_k,' in model TUBE',_n;
+		!  PRINT '---- Gw -------','---- Gs -------','---- DELTA ----',
+		!    '----- W -------';
+		!    PRINT "($W.JN(_k),1),"($W.JN(_k),2),DELTA.JN(_k),
+		!      W.JN(_k);
+		!ENDDO
+		!PRINT ' ';
+		! PRINT '=== MODEL TUBE CALCULATION DIAGNOSTICS END ===';
+	ENDIF
+	
+END
+
+!!eb
+!!bb EVENTs Общие
+EVENT _CalcSensor     ! Измеряемые значения
+	type = REG;
+	replace = 1;
+	turn_on = 1;
+	IF first THEN
+		first = 0;
+	ENDIF
+	
+	!!bb Датчики TUBE
+	! CH1
+	_n = 1+_chOfstTUBE;
+	_TUBE_sens_CH1(1:_nChTUBE(1))=P.CH(_n)(1:_nChTUBE(1));
+	_TUBE_sens_CH1(1:_nChTUBE(1))=_TUBE_sens_CH1(1:_nChTUBE(1))*(1./_MPa);
+	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))=T.CH(_n)(1,1:_nChTUBE(1));
+	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))=
+	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))-_t0C;
+	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))=T.CH(_n)(2,1:_nChTUBE(1));
+	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))=
+	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))-_t0C;
+	_TUBE_sens_CH1(3*_nChTUBE(1)+1:4*_nChTUBE(1))=VOID.CH(_n)(1:_nChTUBE(1));
+	_TUBE_sens_CH1(4*_nChTUBE(1)+1:5*_nChTUBE(1))=XNG.CH(_n)(3,1:_nChTUBE(1));
+	_i = 0;
+	DO _i = 1,_nChTUBE(1)+1;
+		_TUBE_sens_CH1(5*_nChTUBE(1)+_i)="($W.CH(_n)(1,_i),3);
+	ENDDO
+	_i = 0;
+	DO _i = 1,_nChTUBE(1);
+		_TUBE_sens_CH1(6*_nChTUBE(1)+_i+1)=WS1P1(1,'P',P.CH(_n)(_i),2)-_t0C;
+	ENDDO
+	
+	! CH2
+	_n = 2+_chOfstTUBE;
+	_TUBE_sens_CH2(1:_nChTUBE(2))=P.CH(_n)(1:_nChTUBE(2));
+	_TUBE_sens_CH2(1:_nChTUBE(2))=_TUBE_sens_CH2(1:_nChTUBE(2))*(1./_MPa);
+	_TUBE_sens_CH2(1*_nChTUBE(2)+1:2*_nChTUBE(2))=T.CH(_n)(1,1:_nChTUBE(2));
+	_TUBE_sens_CH2(1*_nChTUBE(2)+1:2*_nChTUBE(2))=
+	_TUBE_sens_CH2(1*_nChTUBE(2)+1:2*_nChTUBE(2))-_t0C;
+	_TUBE_sens_CH2(2*_nChTUBE(2)+1:3*_nChTUBE(2))=T.CH(_n)(2,1:_nChTUBE(2));
+	_TUBE_sens_CH2(2*_nChTUBE(2)+1:3*_nChTUBE(2))=
+	_TUBE_sens_CH2(2*_nChTUBE(2)+1:3*_nChTUBE(2))-_t0C;
+	_TUBE_sens_CH2(3*_nChTUBE(2)+1:4*_nChTUBE(2))=VOID.CH(_n)(1:_nChTUBE(2));
+	_TUBE_sens_CH2(4*_nChTUBE(2)+1:5*_nChTUBE(2))=XNG.CH(_n)(3,1:_nChTUBE(2));
+	_i = 0;
+	DO _i = 1,_nChTUBE(2)+1;
+	_TUBE_sens_CH2(5*_nChTUBE(2)+_i)="($W.CH(_n)(1,_i),3);
+	ENDDO
+		_i = 0;
+	DO _i = 1,_nChTUBE(2);
+		_TUBE_sens_CH2(6*_nChTUBE(2)+_i+1)=WS1P1(1,'P',P.CH(_n)(_i),2)-_t0C;
+	ENDDO
+	
+	! CH3
+	_n = 3+_chOfstTUBE;
+	_TUBE_sens_CH3(1:_nChTUBE(3))=P.CH(_n)(1:_nChTUBE(3));
+	_TUBE_sens_CH3(1:_nChTUBE(3))=_TUBE_sens_CH3(1:_nChTUBE(3))*(1./_MPa);
+	_TUBE_sens_CH3(1*_nChTUBE(3)+1:2*_nChTUBE(3))=T.CH(_n)(1,1:_nChTUBE(3));
+	_TUBE_sens_CH3(1*_nChTUBE(3)+1:2*_nChTUBE(3))=
+	_TUBE_sens_CH3(1*_nChTUBE(3)+1:2*_nChTUBE(3))-_t0C;
+	_TUBE_sens_CH3(2*_nChTUBE(3)+1:3*_nChTUBE(3))=T.CH(_n)(2,1:_nChTUBE(3));
+	_TUBE_sens_CH3(2*_nChTUBE(3)+1:3*_nChTUBE(3))=
+	_TUBE_sens_CH3(2*_nChTUBE(3)+1:3*_nChTUBE(3))-_t0C;
+	_TUBE_sens_CH3(3*_nChTUBE(3)+1:4*_nChTUBE(3))=VOID.CH(_n)(1:_nChTUBE(3));
+	_TUBE_sens_CH3(4*_nChTUBE(3)+1:5*_nChTUBE(3))=XNG.CH(_n)(3,1:_nChTUBE(3));
+	_i = 0;
+	DO _i = 1,_nChTUBE(3)+1;
+		_TUBE_sens_CH3(5*_nChTUBE(3)+_i)="($W.CH(_n)(1,_i),3);
+	ENDDO
+	_i = 0;
+	DO _i = 1,_nChTUBE(3);
+		_TUBE_sens_CH3(6*_nChTUBE(3)+_i+1)=WS1P1(1,'P',P.CH(_n)(_i),2)-_t0C;
+	ENDDO
+		
+	
+	!!bb Перепад по межтрубному пространству
+	_n = 1+_chOfstTUBE;
+	_i = 0;
+	
+	! вход
+	DO _i = 13, 16;
+		_TUBE_sens_dP_mtr(1) = _TUBE_sens_dP_mtr(1) + 
+			FRW.CH(_n)(1,_i)*W.CH(_n)(1,_i) + FRW.CH(_n)(2,_i)*W.CH(_n)(2,_i);
+	ENDDO
+	_TUBE_sens_dP_mtr(1) = ABS(_TUBE_sens_dP_mtr(1)*(1./_kPa));
+	
+	! трубный пучок
+	DO _i = 6, 12;
+		_TUBE_sens_dP_mtr(2) = _TUBE_sens_dP_mtr(2) + 
+			FRW.CH(_n)(1,_i)*W.CH(_n)(1,_i) + FRW.CH(_n)(2,_i)*W.CH(_n)(2,_i);
+	ENDDO
+	_TUBE_sens_dP_mtr(2) = ABS(_TUBE_sens_dP_mtr(2)*(1./_kPa));
+	
+	! выход
+	_TUBE_sens_dP_mtr(3) = _TUBE_sens_dP_mtr(3) + 
+		FRW.CH(_n)(1,5)*W.CH(_n)(1,5) + FRW.CH(_n)(2,5)*W.CH(_n)(2,5);
+	_n = 2+_chOfstTUBE;
+	DO _i = 1, 6;
+		_TUBE_sens_dP_mtr(3) = _TUBE_sens_dP_mtr(3) + 
+			FRW.CH(_n)(1,_i)*W.CH(_n)(1,_i) + FRW.CH(_n)(2,_i)*W.CH(_n)(2,_i);
+	ENDDO
+	_TUBE_sens_dP_mtr(3) = ABS(_TUBE_sens_dP_mtr(3)*(1./_kPa));
+	
+	!!eb
+	
+	!!bb Перепад по внутритрубному пространству
+	_n = 3+_chOfstTUBE;
+	_i = 0;
+	
+	! вход
+	DO _i = 1, 5;
+		_TUBE_sens_dP_vntr(1) = _TUBE_sens_dP_vntr(1) + 
+			FRW.CH(_n)(1,_i)*W.CH(_n)(1,_i) + FRW.CH(_n)(2,_i)*W.CH(_n)(2,_i);
+	ENDDO
+	_TUBE_sens_dP_vntr(1) = ABS(_TUBE_sens_dP_vntr(1)*(1./_kPa));
+	
+	! трубный пучок
+	DO _i = 6, 12;
+		_TUBE_sens_dP_vntr(2) = _TUBE_sens_dP_vntr(2) + 
+			FRW.CH(_n)(1,_i)*W.CH(_n)(1,_i) + FRW.CH(_n)(2,_i)*W.CH(_n)(2,_i);
+	ENDDO
+	_TUBE_sens_dP_vntr(2) = ABS(_TUBE_sens_dP_vntr(2)*(1./_kPa));
+	
+	! выход
+	DO _i = 13, 15;
+		_TUBE_sens_dP_vntr(3) = _TUBE_sens_dP_vntr(3) + 
+			FRW.CH(_n)(1,_i)*W.CH(_n)(1,_i) + FRW.CH(_n)(2,_i)*W.CH(_n)(2,_i);
+	ENDDO
+	_TUBE_sens_dP_vntr(3) = ABS(_TUBE_sens_dP_vntr(3)*(1./_kPa));
+	
+	!!eb
+	
+	! Q по HCS 
+	_n = 1+_hcsOfstTUBE;
+	! межтрубное пространство
+	_TUBE_sens_integr(3) = GTLII('QWS2._TUBE_TO');
+	
+	! внутритрубное пространство
+	_TUBE_sens_integr(4) = GTLII('QWS1._TUBE_TO');
+	
+	! Q балансное по межтрубному пространству
+	_n = 1+_chOfstTUBE;
+	_n1 = 2+_chOfstTUBE;
+	_TUBE_sens_integr(5) = "($W.CH(_n)(1,15),3)*
+		(
+			(EH.CH(_n)(1,15)*(1.-VOID.CH(_n)(15)) +
+			EH.CH(_n)(2,15)*VOID.CH(_n)(15)) -
+			(EH.CH(_n1)(1,1)*(1.-VOID.CH(_n1)(1)) +
+			EH.CH(_n1)(2,1)*VOID.CH(_n1)(1))
+		);
+		
+	! Q балансное по внутритрубному пространству
+	_n = 3+_chOfstTUBE;
+	_TUBE_sens_integr(6) = "($W.CH(_n)(1,14),3)*
+		(
+			(EH.CH(_n)(1,14)*(1.-VOID.CH(_n)(14)) +
+			EH.CH(_n)(2,14)*VOID.CH(_n)(14)) -
+			(EH.CH(_n)(1,1)*(1.-VOID.CH(_n)(1)) +
+			EH.CH(_n)(2,1)*VOID.CH(_n)(1))
+		);
+		
+	! Коэффициенты теплоотдачи, усредненные по площади
+	_i = 0;
+	_n = 1+_hcsOfstTUBE;
+	_a1 := 0.;
+	_a1 = 0.;
+	_F1 := 0.;
+	_F1 = 0.;
+	_a2 := 0.;
+	_a2 = 0.;
+	_F2 := 0.;
+	_F2 = 0.;
+	DO _i = 1,_nHcsTUBE(1);
+		_a1 = _a1 + 
+			ALW.HCS(_n)(1,_i)*DF.HCS(_n)(1,_i);
+		_F1 = _F1 + DF.HCS(_n)(1,_i);
+		
+		_a2 = _a2 + 
+			ALW.HCS(_n)(2,_i)*DF.HCS(_n)(2,_i);
+		_F2 = _F2 + DF.HCS(_n)(2,_i);
+	ENDDO	
+	! Коэффициент теплоотдачи по внутритрубному пространству
+	! _TUBE_sens_integr(7) = _F1;
+	_TUBE_sens_integr(7) = _a1/_F1;
+	
+	! Коэффициент теплоотдачи по межтрубному пространству
+	! _TUBE_sens_integr(8) = _F2;
+	_TUBE_sens_integr(8) = _a2/_F2;
+	
+	
+	!!eb
+	
+END
+EVENT _ReloadMonPer   ! Сброс счетчика вывода мониторинга
+  TYPE = 0;                  
+  REPLACE = 1;
+  TURN_ON = 1;
+  IF FIRST THEN
+    FIRST = 0;
+  ENDIF
+  _timeMon = TAU;
+
+  IF( (_timeMon - _timeMonOld) >= _monPer ) THEN
+    _timeMonOld = _timeMon;
+  ENDIF
+  
+END
+EVENT _DtHandle
+	TYPE = 0;
+	REPLACE = 1;
+	TURN_ON = 1;
+	
+	IF (TAU>1.)&(TAU<20.1) THEN
+		dt_max = 0.1;
+		dt_out = 10.;
+		dt_sav = 100.;
+		dt_diag = 1.;
+		_monPer = 1.;
+	ENDIF
+	
+	
+END
+EVENT _Actions
+	TYPE = 0;
+	REPLACE = 1;
+	TURN_ON = 1;
+	
+	_dT := 10.;	! время срабатывания событий
+	
+	IF (TAU>1.)&(TAU<20.) THEN
+		! BV1
+		_n = 1+_bvOfstTUBE;
+		
+		IF(_P0_out_t_in > _P0_out_t_TUBE) THEN
+			P.BVOL_T(_n) = 
+				MIN(_P0_out_t_in,P.BVOL_T(_n)+
+					DT*(_P0_out_t_in-_P0_out_t_TUBE)/_dT);
+		ELSE
+			P.BVOL_T(_n) = 
+				MAX(_P0_out_t_in,P.BVOL_T(_n)+
+					DT*(_P0_out_t_in-_P0_out_t_TUBE)/_dT);			
+		ENDIF
+		
+		IF(_T0_out_t_in > _T0_out_t_TUBE) THEN
+			T.BVOL_T(_n)(1) = 
+				MIN(_T0_out_t_in,T.BVOL_T(_n)(1)+
+					DT*(_T0_out_t_in-_T0_out_t_TUBE)/_dT);
+		ELSE
+			T.BVOL_T(_n)(1) = 
+				MAX(_T0_out_t_in,T.BVOL_T(_n)(1)+
+					DT*(_T0_out_t_in-_T0_out_t_TUBE)/_dT);			
+		ENDIF
+    T.BVOL_T(_n)(2) = WS1P1(2,'P',P.BVOL_T(_n),2);
+		
+		VOID.BVOL_T(_n) = 
+			MIN(_void0_out_t_in,VOID.BVOL_T(_n)+
+				DT*(_void0_out_t_in-0.)/_dT);
+			
+			
+		! BV2
+		_n = 2+_bvOfstTUBE;
+		
+		IF(_P0_in_t_in > _P0_in_t_TUBE) THEN
+			P.BVOL_T(_n) = 
+				MIN(_P0_in_t_in,P.BVOL_T(_n)+
+					DT*(_P0_in_t_in-_P0_in_t_TUBE)/_dT);
+		ELSE
+			P.BVOL_T(_n) = 
+				MAX(_P0_in_t_in,P.BVOL_T(_n)+
+					DT*(_P0_in_t_in-_P0_in_t_TUBE)/_dT);			
+		ENDIF
+		
+		IF(_T0_in_t_in > _T0_in_t_TUBE) THEN
+			T.BVOL_T(_n)(1) = 
+				MIN(_T0_in_t_in,T.BVOL_T(_n)(1)+
+					DT*(_T0_in_t_in-_T0_in_t_TUBE)/_dT);
+		ELSE
+			T.BVOL_T(_n)(1) = 
+				MAX(_T0_in_t_in,T.BVOL_T(_n)(1)+
+					DT*(_T0_in_t_in-_T0_in_t_TUBE)/_dT);			
+		ENDIF
+    T.BVOL_T(_n)(2) = WS1P1(2,'P',P.BVOL_T(_n),2);
+		
+		VOID.BVOL_T(_n) = 
+			MIN(_void0_in_t_in,VOID.BVOL_T(_n)+
+				DT*(_void0_in_t_in-0.)/_dT);
+			
+			
+		! SM1
+		_n = 1+_smOfstTUBE;
+    GMOUT.SMASS_T(_n) = 
+			MIN(_G0_out_t_in, GMOUT.SMASS_T(_n)+DT*_G0_out_t_in/_dT);
+		
+		! SM2
+		_n = 2+_smOfstTUBE;
+    GMOUT.SMASS_T(_n) = 
+			MIN(_G0_in_t_in, GMOUT.SMASS_T(_n)+DT*_G0_in_t_in/_dT);
+	ENDIF
+	
+	
+END
+!!eb
+
+!!bb OUTPUTs
+OUTPUT _Out ! Общая процедура вывода
+!!bb Датчики
+WRITE DT,_tOffset,_pi,_gg,_xgAir,_xgN2,_kgs,_MPa,_kPa,_MWt,_kWt,_atm,
+	dt_out,dt_max,dt_diag,_monPer,dt_sav,restart,_tauRest,
+	! TUBE
+	_TUBE_sens_CH1,
+	_TUBE_sens_CH2,
+	_TUBE_sens_CH3,
+	_TUBE_sens_integr,
+	_TUBE_sens_dP_mtr,
+	_TUBE_sens_dP_vntr
+	;
+
+!!eb
+
+END
+
+!!eb 
