@@ -1,0 +1,380 @@
+FORMAT = 4;
+
+!!bb Переменные COOL
+_n_CH1_COOL = 15;
+_n_CH2_COOL = 5;
+_n_CH3_COOL = 14;
+!_n_CH4_COOL = 4;	
+!_n_CH5_COOL = 3;
+!_n_CH6_COOL = 3;
+!_n_CH7_COOL = 3;
+!_n_CH8_COOL = 3;
+!_n_VAL_COOL = 8;
+   
+!!eb
+
+MAIN:
+
+BEGIN
+  IF TAU == 0 THEN GOTO A ENDIF
+OUT _TIME.dat    ! таймеры
+!!bb COOL
+  OUT _Xn2_CH1_COOL.dat
+  OUT _X_CH1_COOL.dat
+  OUT _P_CH1_COOL.dat
+  OUT _Tg_CH1_COOL.dat
+  OUT _Tf_CH1_COOL.dat
+  OUT _Ts_CH1_COOL.dat
+  OUT _G_CH1_COOL.dat
+	
+  OUT _Xn2_CH2_COOL.dat
+  OUT _X_CH2_COOL.dat
+  OUT _P_CH2_COOL.dat
+  OUT _Tg_CH2_COOL.dat
+  OUT _Tf_CH2_COOL.dat
+  OUT _Ts_CH2_COOL.dat
+  OUT _G_CH2_COOL.dat
+	
+  OUT _Xn2_CH3_COOL.dat
+  OUT _X_CH3_COOL.dat
+  OUT _P_CH3_COOL.dat
+  OUT _Tg_CH3_COOL.dat
+  OUT _Tf_CH3_COOL.dat
+  OUT _Ts_CH3_COOL.dat
+  OUT _G_CH3_COOL.dat
+	
+	OUT _integr_COOL.dat
+	
+	OUT _dP_COOL.dat
+  
+  ! OUT _S_VAL_COOL.dat
+  ! OUT _CSI_VAL_COOL.dat
+
+!!eb
+
+  A: END
+
+END
+
+OUTPUT _TIME.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','DT','max','diag','out','mon','sav';
+  ENDIF
+  WRITE DT,dt_max,dt_diag,dt_out,_monPer,dt_sav;
+
+END
+!!bb OUTPUTs COOL
+
+
+OUTPUT _P_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12','P13',
+	'P14','P15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(1:_n_CH1_COOL);
+
+END
+
+OUTPUT _Tf_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Tf1','Tf2','Tf3','Tf4','Tf5','Tf6','Tf7','Tf8','Tf9','Tf10','Tf11',
+	'Tf12','Tf13','Tf14','Tf15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(1*_n_CH1_COOL+1:2*_n_CH1_COOL);
+
+END
+
+OUTPUT _Tg_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Tg1','Tg2','Tg3','Tg4','Tg5','Tg6','Tg7','Tg8','Tg9','Tg10','Tg11',
+	'Tg12','Tg13','Tg14','Tg15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(2*_n_CH1_COOL+1:3*_n_CH1_COOL);
+
+END
+
+OUTPUT _Ts_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Ts1','Ts2','Ts3','Ts4','Ts5','Ts6','Ts7','Ts8','Ts9','Ts10',
+		'Ts11','Ts12','Ts13','Ts14','Ts15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(6*_n_CH1_COOL+2:7*_n_CH1_COOL+1);
+
+END
+
+OUTPUT _X_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11',
+	'X12','X13','X14','X15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(3*_n_CH1_COOL+1:4*_n_CH1_COOL);
+
+END
+
+OUTPUT _Xn2_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Xn21','Xn22','Xn23','Xn24','Xn25','Xn26','Xn27','Xn28','Xn29',
+	'Xn210','Xn211','Xn212','Xn213','Xn214','Xn215';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(4*_n_CH1_COOL+1:5*_n_CH1_COOL);
+
+END
+
+OUTPUT _G_CH1_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'G1','G2','G3','G4','G5','G6','G7','G8','G9',
+	'G10','G11','G12','G13','G14','G15','G16';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH1(5*_n_CH1_COOL+1:6*_n_CH1_COOL+1);
+
+END
+
+
+
+OUTPUT _P_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12','P13',
+	'P14','P15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(1:_n_CH2_COOL);
+
+END
+
+OUTPUT _Tf_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Tf1','Tf2','Tf3','Tf4','Tf5','Tf6','Tf7','Tf8','Tf9','Tf10','Tf11',
+	'Tf12','Tf13','Tf14','Tf15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(1*_n_CH2_COOL+1:2*_n_CH2_COOL);
+
+END
+
+OUTPUT _Tg_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Tg1','Tg2','Tg3','Tg4','Tg5','Tg6','Tg7','Tg8','Tg9','Tg10','Tg11',
+	'Tg12','Tg13','Tg14','Tg15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(2*_n_CH2_COOL+1:3*_n_CH2_COOL);
+
+END
+
+OUTPUT _Ts_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Ts1','Ts2','Ts3','Ts4','Ts5','Ts6','Ts7','Ts8','Ts9','Ts10',
+		'Ts11','Ts12','Ts13','Ts14','Ts15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(6*_n_CH2_COOL+2:7*_n_CH2_COOL+1);
+
+END
+
+OUTPUT _X_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11',
+	'X12','X13','X14','X15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(3*_n_CH2_COOL+1:4*_n_CH2_COOL);
+
+END
+
+OUTPUT _Xn2_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Xn21','Xn22','Xn23','Xn24','Xn25','Xn26','Xn27','Xn28','Xn29',
+	'Xn210','Xn211','Xn212','Xn213','Xn214','Xn215';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(4*_n_CH2_COOL+1:5*_n_CH2_COOL);
+
+END
+
+OUTPUT _G_CH2_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'G1','G2','G3','G4','G5','G6','G7','G8','G9',
+	'G10','G11','G12','G13','G14','G15','G16';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH2(5*_n_CH2_COOL+1:6*_n_CH2_COOL+1);
+
+END
+
+
+
+OUTPUT _P_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12','P13',
+	'P14','P15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(1:_n_CH3_COOL);
+
+END
+
+OUTPUT _Tf_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Tf1','Tf2','Tf3','Tf4','Tf5','Tf6','Tf7','Tf8','Tf9','Tf10','Tf11',
+	'Tf12','Tf13','Tf14','Tf15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(1*_n_CH3_COOL+1:2*_n_CH3_COOL);
+
+END
+
+OUTPUT _Tg_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Tg1','Tg2','Tg3','Tg4','Tg5','Tg6','Tg7','Tg8','Tg9','Tg10','Tg11',
+	'Tg12','Tg13','Tg14','Tg15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(2*_n_CH3_COOL+1:3*_n_CH3_COOL);
+
+END
+
+OUTPUT _Ts_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Ts1','Ts2','Ts3','Ts4','Ts5','Ts6','Ts7','Ts8','Ts9','Ts10',
+		'Ts11','Ts12','Ts13','Ts14','Ts15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(6*_n_CH3_COOL+2:7*_n_CH3_COOL+1);
+
+END
+
+OUTPUT _X_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'X1','X2','X3','X4','X5','X6','X7','X8','X9','X10','X11',
+	'X12','X13','X14','X15';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(3*_n_CH3_COOL+1:4*_n_CH3_COOL);
+
+END
+
+OUTPUT _Xn2_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'Xn21','Xn22','Xn23','Xn24','Xn25','Xn26','Xn27','Xn28','Xn29',
+	'Xn210','Xn211','Xn212','Xn213','Xn214','Xn215';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(4*_n_CH3_COOL+1:5*_n_CH3_COOL);
+
+END
+
+OUTPUT _G_CH3_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+	'G1','G2','G3','G4','G5','G6','G7','G8','G9',
+	'G10','G11','G12','G13','G14','G15','G16';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_CH3(5*_n_CH3_COOL+1:6*_n_CH3_COOL+1);
+
+END
+
+
+
+
+OUTPUT _integr_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R','-','-','Q_HCS_out','Q_HCS_in',
+			'Q_bal_out','Q_bal_in','ALW_in','ALW_out';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_integr(1:10);
+
+END
+
+
+OUTPUT _dP_COOL.dat
+  IF FIRST THEN
+    FIRST = 0;
+    WRITE1 'TAU','TAU_R',
+			'dP_mtr_in','dP_mtr','dP_mtr_out',
+			'dP_vntr_in','dP_vntr','dP_vntr_out';
+  ENDIF
+  ! моменты
+  WRITE TAU-_tauRest,_COOL_sens_dP_mtr(1:3),_COOL_sens_dP_vntr(1:3);
+
+END
+
+
+
+!OUTPUT _S_VAL_COOL.dat
+!  IF FIRST THEN
+!    FIRST = 0;
+!    WRITE1 'TAU','TAU_R',
+!	'S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','S12';
+!  ENDIF
+!  ! моменты
+!  WRITE TAU-_tauRest,_COOL_sens_VALs(1:_n_VAL_COOL);
+!
+!END
+!
+!OUTPUT _CSI_VAL_COOL.dat
+!  IF FIRST THEN
+!    FIRST = 0;
+!    WRITE1 'TAU','TAU_R',
+!	'S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','S12';
+!  ENDIF
+!  ! моменты
+!  WRITE TAU-_tauRest,_COOL_sens_VALs_csi(1:_n_VAL_COOL);
+!
+!END
+!
+
+!!eb
+
+

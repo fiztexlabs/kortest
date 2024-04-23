@@ -471,10 +471,10 @@ _troInf(1:2,1:2) =
 !!bb Переменные описания элементов TUBE
 
 ! Маска сдвига			число элементов
-_chOfstTUBE  = 0	;	_numChTUBE	= 1;
+_chOfstTUBE  = 0	;	_numChTUBE	= 2;
 _scOfstTUBE  = 0	;	_numScTUBE	= 0;
-_bvOfstTUBE  = 0	;	_numBvTUBE	= 1;
-_smOfstTUBE  = 0	;	_numSmTUBE	= 1;
+_bvOfstTUBE  = 0	;	_numBvTUBE	= 2;
+_smOfstTUBE  = 0	;	_numSmTUBE	= 2;
 _jnbOfstTUBE = 0	;	_numJnbTUBE	= 0;
 _cntOfstTUBE = 0	;	_numCntTUBE	= 0;
 _lrOfstTUBE  = 0	;	_numLrTUBE	= 0;
@@ -506,20 +506,20 @@ _radOfstTUBE = 0	;	_numRadTUBE	= 0;
 _P0_TUBE = 15.7*_MPa;
 
 ! Начальная температура
-_T0_TUBE = 80.+_t0C;
+_T0_TUBE = 40.+_t0C;
 
 
 !!eb
 
 !!bb Граничные условия модели TUBE
-	! Целевой расход в трубе
+	! Целевой расход в трубах
 	_Gt_TUBE = 0.03204;
-
-	! Целевое давление
-	_P0_TUBE = 15.7*_MPa;
 	
-	! Целевая температура внешней поверхности стенки
-	_T0_w_TUBE = 325.+_t0C;
+	! Целевая температура входа во внутритрубное пространство
+	_Tin_vntr_TUBE = 40.+_t0C;
+	
+	! Целевая температура входа в межтрубное пространство
+	_Tin_mtr_TUBE = 325.+_t0C;
 
 !!eb
 
@@ -547,6 +547,7 @@ _mChTUBE = 0.;
 _nChTUBE(1:_numChTUBE) = 3;
 
 _nChTUBE(1) = 5;
+_nChTUBE(2) = 5;
 
 _nMaxChTUBE = MAXA(_nChTUBE);
 
@@ -555,24 +556,26 @@ _nMaxChTUBE = MAXA(_nChTUBE);
 !!bb BVOL_T TUBE (BV)
 ! Элементы  модели
 _bvTUBE(1:_numBvTUBE) = 
-	1
+	1,
+	2
 	;
 ! Число интегрируемых элементов модели
-_numLayBvTUBE = 1;
+_numLayBvTUBE = 2;
 ! Интегрируемые элементы модели
-_bvLayTUBE(1:_numLayBvTUBE) = 1:1;
+_bvLayTUBE(1:_numLayBvTUBE) = 1:2;
 
 !!eb BV TUBE
 
 !!bb SMASS_T TUBE (SM)
 ! Элементы  модели
 _smTUBE(1:_numSmTUBE) = 
-  1
+  1,
+	2
 	;
 ! Число интегрируемых элементов модели
-_numLaySmTUBE = 1;
+_numLaySmTUBE = 2;
 ! Интегрируемые элементы модели
-_smLayTUBE(1:_numLaySmTUBE) = 1:1;
+_smLayTUBE(1:_numLaySmTUBE) = 1:2;
 
 !!eb
 
@@ -595,6 +598,7 @@ _nMaxHcsTUBE = MAXA(_nHcsTUBE);
 !!bb Датчики TUBE
 
 _TUBE_sens_CH1(1:150) = 0.;
+_TUBE_sens_CH2(1:150) = 0.;
 _TUBE_sens_integr(1:10) = 0.;
 
 !!eb
@@ -618,8 +622,12 @@ CH(1+_chOfstTUBE)/i - BVOL_T(1+_bvOfstTUBE);
 CH(1+_chOfstTUBE)/o - BLJUN1;
 CH(1+_chOfstTUBE)(_nChTUBE(1+_chOfstTUBE)) - SMASS_T(1+_smOfstTUBE);
 
+CH(2+_chOfstTUBE)/o - BVOL_T(2+_bvOfstTUBE);
+CH(2+_chOfstTUBE)/i - BLJUN1;
+CH(2+_chOfstTUBE)(1) - SMASS_T(2+_smOfstTUBE);
+
 HCS(1+_hcsOfstTUBE)(1:5)/1 - CH(1+_chOfstTUBE)(1:5);
-HCS(1+_hcsOfstTUBE)(1:5)/2 - BHEAT1;
+HCS(1+_hcsOfstTUBE)(1:5)/2 - CH(2+_chOfstTUBE)(1:5);
 
 
 !!eb
@@ -628,7 +636,7 @@ HCS(1+_hcsOfstTUBE)(1:5)/2 - BHEAT1;
 END
 ! Вызов процедур DATA моделей
 CALL _BlJun;
-CALL _Bh1;
+! CALL _Bh1;
 !!bb CALLs TUBE
 CALL _ChTUBE;
 CALL _BvTUBE;
@@ -712,20 +720,52 @@ DATA _ChTUBE
 	
 		TYPE  = 0;
 	
-		PR = 
-			0.038955749,
-			0.038955749,
-			0.038955749,
-			0.038955749,
-			0.038955749;
+		PR = 0.038955749;
 	
-		DZ = 
-			2.490,
-			2.490,
-			2.490,
-			2.490,
-			2.490;
+		DZ = 2.490;
 
+	
+		DH = 0.3;
+
+	
+		ROU = 2.e-5;
+	
+		P(1:N) = _P0_TUBE;
+	
+		T(1,1:N) = _T0_TUBE;
+		T(2,1:N) = WS1P1(2,'P',_P0_TUBE,2);
+	
+		VOID = 0.;
+		!XB = ;
+		!MBW = ;
+		!SRE(1:2) = ;
+		!NE = ;
+		!JIN = 0;
+		!JOU = 0;
+		
+		! RAV = 0.188;
+		
+		XNG(1,1:N) = 0.;
+		XNG(2,1:N) = 0.;
+		XNG(3,1:N) = 0.;
+		XNG(4,1:N) = 0.;
+		
+		XNF(1,1:N) = 0.;
+		XNF(2,1:N) = 0.;
+		XNF(3,1:N) = 0.;
+		XNF(4,1:N) = 0.;
+		
+	ENDIF
+	IF(NV==2+_chOfstTUBE) THEN
+		N = _nChTUBE(NV-_chOfstTUBE);
+		
+		S = 0.00021182;
+	
+		TYPE  = 6;
+	
+		PR = 0.052955;
+	
+		DZ = 0.3;
 	
 		DH = 0.3;
 
@@ -783,11 +823,11 @@ DATA _BvTUBE
 		XNF(4) = 0.;
 	ENDIF
 	IF(NV==2+_bvOfstTUBE) THEN
-		P = _P0_in_t_TUBE;
+		P = _P0_TUBE;
 		
 		VOID = 0.;
 		
-		T = _T0_in_t_TUBE, WS1P1(2,'P',_P0_in_t_TUBE,2);
+		T = _T0_TUBE, WS1P1(2,'P',_P0_TUBE,2);
 		
 		!XB = ;
 		
@@ -814,8 +854,26 @@ DATA _SmTUBE
 		
     _n = 1+_chOfstTUBE;
     EHIN = 
-			WS2P1(1,'PT',P.CH(_n)(5),T.CH(_n)(1,_nChTUBE(_n)),4),
-			WS2P1(2,'PT',P.CH(_n)(5),T.CH(_n)(2,_nChTUBE(_n)),4);
+			WS2P1(1,'PT',P.CH(_n)(_nChTUBE(_n)),T.CH(_n)(1,_nChTUBE(_n)),4),
+			WS2P1(2,'PT',P.CH(_n)(_nChTUBE(_n)),T.CH(_n)(2,_nChTUBE(_n)),4);
+			
+    GMOUT = 0.;
+		
+    !XB = ;
+    XNG(1) = 0.;
+    XNG(2) = 0.;
+    XNG(3) = 0.;
+    XNG(4) = 0.;
+  ENDIF
+  IF(NV==2+_smOfstTUBE) THEN ! 
+    GIN = 
+			0.,
+			0.;
+		
+    _n = 2+_chOfstTUBE;
+    EHIN = 
+			WS2P1(1,'PT',P.CH(_n)(1),T.CH(_n)(1,1),4),
+			WS2P1(2,'PT',P.CH(_n)(1),T.CH(_n)(2,1),4);
 			
     GMOUT = 0.;
 		
@@ -856,12 +914,7 @@ DATA _HcsTUBE
 			
 		! QX = ;
 			
-		DFZ = 
-			2.490,
-			2.490,
-			2.490,
-			2.490,
-			2.490;
+		DFZ = 2.490;
 			
 		! QZ = ;
 			
@@ -889,7 +942,7 @@ DATA _HcsTUBE
 			
 		! NALF = ;
 			
-		KIND = 0,6;
+		KIND = 6,4;
 			
 		! PAR = ;
 			
@@ -1173,14 +1226,18 @@ EVENT _CalcSensor     ! Измеряемые значения
 	_n = 1+_chOfstTUBE;
 	_TUBE_sens_CH1(1:_nChTUBE(1))=P.CH(_n)(1:_nChTUBE(1));
 	_TUBE_sens_CH1(1:_nChTUBE(1))=_TUBE_sens_CH1(1:_nChTUBE(1))*(1./_MPa);
-	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))=T.CH(_n)(1,1:_nChTUBE(1));
+	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))=
+		T.CH(_n)(1,1:_nChTUBE(1));
 	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))=
 	_TUBE_sens_CH1(1*_nChTUBE(1)+1:2*_nChTUBE(1))-_t0C;
-	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))=T.CH(_n)(2,1:_nChTUBE(1));
+	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))=
+		T.CH(_n)(2,1:_nChTUBE(1));
 	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))=
 	_TUBE_sens_CH1(2*_nChTUBE(1)+1:3*_nChTUBE(1))-_t0C;
-	_TUBE_sens_CH1(3*_nChTUBE(1)+1:4*_nChTUBE(1))=VOID.CH(_n)(1:_nChTUBE(1));
-	_TUBE_sens_CH1(4*_nChTUBE(1)+1:5*_nChTUBE(1))=XNG.CH(_n)(3,1:_nChTUBE(1));
+	_TUBE_sens_CH1(3*_nChTUBE(1)+1:4*_nChTUBE(1))=
+		VOID.CH(_n)(1:_nChTUBE(1));
+	_TUBE_sens_CH1(4*_nChTUBE(1)+1:5*_nChTUBE(1))=
+		XNG.CH(_n)(3,1:_nChTUBE(1));
 	_i = 0;
 	DO _i = 1,_nChTUBE(1)+1;
 		_TUBE_sens_CH1(5*_nChTUBE(1)+_i)="($W.CH(_n)(1,_i),3);
@@ -1189,6 +1246,32 @@ EVENT _CalcSensor     ! Измеряемые значения
 	DO _i = 1,_nChTUBE(1);
 		_TUBE_sens_CH1(6*_nChTUBE(1)+_i+1)=WS1P1(1,'P',P.CH(_n)(_i),2)-_t0C;
 	ENDDO
+	
+	! CH2
+	_n = 2+_chOfstTUBE;
+	_TUBE_sens_CH2(1:_nChTUBE(1))=P.CH(_n)(1:_nChTUBE(1));
+	_TUBE_sens_CH2(1:_nChTUBE(1))=_TUBE_sens_CH2(1:_nChTUBE(1))*(1./_MPa);
+	_TUBE_sens_CH2(1*_nChTUBE(1)+1:2*_nChTUBE(1))=
+		T.CH(_n)(1,1:_nChTUBE(1));
+	_TUBE_sens_CH2(1*_nChTUBE(1)+1:2*_nChTUBE(1))=
+	_TUBE_sens_CH2(1*_nChTUBE(1)+1:2*_nChTUBE(1))-_t0C;
+	_TUBE_sens_CH2(2*_nChTUBE(1)+1:3*_nChTUBE(1))=
+		T.CH(_n)(2,1:_nChTUBE(1));
+	_TUBE_sens_CH2(2*_nChTUBE(1)+1:3*_nChTUBE(1))=
+	_TUBE_sens_CH2(2*_nChTUBE(1)+1:3*_nChTUBE(1))-_t0C;
+	_TUBE_sens_CH2(3*_nChTUBE(1)+1:4*_nChTUBE(1))=
+		VOID.CH(_n)(1:_nChTUBE(1));
+	_TUBE_sens_CH2(4*_nChTUBE(1)+1:5*_nChTUBE(1))=
+		XNG.CH(_n)(3,1:_nChTUBE(1));
+	_i = 0;
+	DO _i = 1,_nChTUBE(1)+1;
+		_TUBE_sens_CH2(5*_nChTUBE(1)+_i)="($W.CH(_n)(1,_i),3);
+	ENDDO
+	_i = 0;
+	DO _i = 1,_nChTUBE(1);
+		_TUBE_sens_CH2(6*_nChTUBE(1)+_i+1)=WS1P1(1,'P',P.CH(_n)(_i),2)-_t0C;
+	ENDDO
+	
 	
 	! Q по HCS 
 	_n = 1+_hcsOfstTUBE;
@@ -1293,9 +1376,19 @@ EVENT _Actions
     GMOUT.SMASS_T(_n) = 
 			MIN(_Gt_TUBE, GMOUT.SMASS_T(_n)+DT*_Gt_TUBE/_dT);
 			
-		! BH
-    BCOND.BHEAT1(1) = 
-			MIN(_T0_w_TUBE, BCOND.BHEAT1(1)+DT*(_T0_w_TUBE-_T0_TUBE)/_dT);
+		! SM2
+		_n = 2+_smOfstTUBE;
+    GMOUT.SMASS_T(_n) = 
+			MIN(_Gt_TUBE, GMOUT.SMASS_T(_n)+DT*_Gt_TUBE/_dT);
+			
+		! BV2
+		_n = 2+_bvOfstTUBE;
+		T.BVOL_T(_n)(1) = 
+			MIN(_Tin_mtr_TUBE,T.BVOL_T(_n)(1)+
+				DT*(_Tin_mtr_TUBE-_T0_TUBE)/_dT);
+		ELSE
+    T.BVOL_T(_n)(2) = WS1P1(2,'P',P.BVOL_T(_n),2);
+			
 	ENDIF
 	
 	
@@ -1309,6 +1402,7 @@ WRITE DT,_tOffset,_pi,_gg,_xgAir,_xgN2,_kgs,_MPa,_kPa,_MWt,_kWt,_atm,
 	dt_out,dt_max,dt_diag,_monPer,dt_sav,restart,_tauRest,
 	! TUBE
 	_TUBE_sens_CH1,
+	_TUBE_sens_CH2,
 	_TUBE_sens_integr
 	;
 
